@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" 
+			   
+			   minWidth="955" minHeight="600"
+			   applicationComplete="connectSocket ('localhost', 5000);">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			private var _socket :Socket;
+			
+			private var _host :String;
+			private var _port :int;
+			
+			public function connectSocket ( host :String, port :int ) :void
+			{
+				_host = host;
+				_port = port;
+				
+				//채팅서버의 policy 정보를 가져올 policy 서버의 정보를 설정한다.
+				//이것을 설정하지 않고 그대로 policy서버에 접속을해도 무방하나
+				//그렇게되면 서버는 클라이언트(플래쉬플래이어)의 <policy-file-request/> 요청에 대해서
+				//3초이내에 응답해야한다. 그렇지않으면 응답하지 않은것으로 간주하여
+				//보안샌드박스예외를 유발한다.(네트웍사정등으로 응답시간 3초를 초과할 가능성이 존재..)
+				//설정을 하게되면 해당 접속을 하는 서버에 policy정보를 제공하는 서버가 있다라고
+				//인식시키는 역할을 하게되며 또한 응답시간에 여유가 있다.
+				
+				//policy server로의 접속..및 정책을 얻어오게한다.
+				Security.loadPolicyFile("xmlsocket://"+_host+":5001");
+				
+				_socket = new Socket ();
+				_socket.addEventListener( Event.CONNECT, onConnect );
+				_socket.addEventListener( ProgressEvent.SOCKET_DATA, onSocketData );
+				_socket.connect ( host, port );
+			}
+			
+			private function onConnect ( event :Event ) :void
+			{
+				trace ( "connected socket!" );
+			}
+			
+			public function sendMessage ( v :* ) :void
+			{
+				trace ( "sendMessage : " + v);
+				
+				_socket.writeUTFBytes(v);
+				
+				if ( _socket.connected )
+				{
+					try
+					{
+						_socket.flush();
+						trace ( "_socket.flush()");
+					}
+					catch ( error :IOError )
+					{
+						trace ( "_socket.flush error:" + error );
+					}
+				}
+				else
+				{
+					if ( _host && _port )
+					{
+						connectSocket ( _host, _port );
+					}
+					else
+					{
+						trace ( "You can't connect to Socket. host or port is not defined." );
+					}
+				} 
+			}
+			
+			public function closeSocket () :void
+			{
+				if ( _socket.connected )
+				{
+					_socket.close();
+				}
+			}
+			
+			private function onSocketData ( event :ProgressEvent ) :void
+			{
+				trace ( "Socket received " + _socket.bytesAvailable + " byte(s) of data : " );
+				/* 
+				while ( _socket.bytesAvailable ) 
+				{
+				var intByte :int = _socket.readByte();
+				trace ( intByte );
+				}
+				*/
+				var data :String = _socket.readUTFBytes(_socket.bytesAvailable);
+				
+				
+				ta.text += data + "\n";
+				
+				trace ( data );
+			}
+		]]>
+	</fx:Script>
+	
+	<mx:VBox width="100%" height="100%">
+		<mx:TextArea id="ta" width="100%" height="100%"
+					 updateComplete="ta.verticalScrollPosition=ta.maxVerticalScrollPosition" />
+		<mx:HBox>
+			<mx:TextInput id="ti" width="100%" />
+			<mx:Button id="btn" label="전송하기" click="sendMessage (ti.text+'\n')" />
+		</mx:HBox>
+	</mx:VBox>
+	
+</s:Application>
